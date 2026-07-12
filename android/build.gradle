@@ -1,0 +1,46 @@
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+group = 'expo.modules.evskit'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.evskit"
+  defaultConfig {
+    minSdkVersion getExpoModuleDefaultMinSdkVersion()
+    targetSdkVersion getExpoModuleDefaultTargetSdkVersion()
+    versionCode 1
+    versionName "0.1.0"
+  }
+  compileSdkVersion getExpoModuleDefaultCompileSdkVersion()
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+
+  kotlinOptions {
+    jvmTarget = "17"
+  }
+}
+
+repositories {
+  google()
+  mavenCentral()
+  // Everysight SDK — see https://everysight.github.io/maverick_docs/libraries-api/android/
+  maven {
+    url = uri("https://maven.pkg.github.com/everysight-maverick/m1-android-maven")
+    credentials {
+      // Populate these via gradle.properties / env vars — do not commit real
+      // credentials. A GitHub PAT with `read:packages` scope is required.
+      username = findProperty("everysightGithubUsername") ?: System.getenv("EVERYSIGHT_GITHUB_USERNAME")
+      password = findProperty("everysightGithubToken") ?: System.getenv("EVERYSIGHT_GITHUB_TOKEN")
+    }
+  }
+}
+
+dependencies {
+  implementation project(':expo-modules-core')
+  implementation "com.everysight:evskit:2.6.1"
+  implementation "com.everysight:nativeevskit:2.6.1"
+}

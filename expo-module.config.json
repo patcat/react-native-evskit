@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["EvsKitModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.evskit.EvsKitModule"]
+  }
+}
