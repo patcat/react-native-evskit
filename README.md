@@ -4,7 +4,7 @@ A tidy, modular Expo Module bridge for Everysight's [Maverick SDK](https://every
 
 ## Status
 
-The native module calls into `Evs.instance()...` are wired up in both `EvsKitModule.kt` and `EvsKitModule.swift` with signatures confirmed against the [everysight-maverick/samples](https://github.com/everysight-maverick/samples) repo (v2.6.1) and the MCP API reference. Note - you need Everysight's `sdk.key` / GitHub Packages access to compile against the SDK.
+The native module calls into `Evs.instance()...` are wired up in both `EvsKitModule.kt` and `EvsKitModule.swift`. Note - you need Everysight's `sdk.key` / GitHub Packages access to compile against the SDK.
 
 Everything in `src/` (the TypeScript API, types, event system, React hook) is complete and shouldn't need changes.
 
