@@ -24,7 +24,7 @@ public class EvsKitModule: Module {
   private var quaternionEventsHandle: QuaternionEventsHandler?
 
   public func definition() -> ModuleDefinition {
-    Name("EvsKit")
+    Name("RNEvsKit")
 
     Events(
       "onConnectionStateChanged",
@@ -56,7 +56,7 @@ public class EvsKitModule: Module {
     }
 
     AsyncFunction("isStarted") { () -> Bool in
-      return Evs.isStarted()
+      return Evs.instance().isReady()
     }
 
     // --- Stock UI --------------------------------------------------------------
@@ -110,11 +110,11 @@ public class EvsKitModule: Module {
     }
 
     AsyncFunction("setBrightness") { (value: Int) -> Void in
-      Evs.instance().display().setBrightness(value: value)
+      Evs.instance().display().setBrightness(value: Int16(value))
     }
 
     AsyncFunction("setBrightnessLevel") { (level: Int) -> Void in
-      Evs.instance().display().desecrateBrightness().setBrightnessLevel(level)
+      Evs.instance().display().desecrateBrightness().setBrightnessLevel(levelIndex: Int32(level))
     }
 
     AsyncFunction("setAutoBrightness") { (options: AutoBrightnessOptionsRecord) -> Void in
@@ -168,7 +168,7 @@ public class EvsKitModule: Module {
 
     AsyncFunction("enableSensorsFusion") { (enabled: Bool) -> Void in
       if enabled {
-        Evs.instance().sensors().enableSensorsFusion()
+        Evs.instance().sensors().enableInertialSensors()
       } else {
         Evs.instance().sensors().disableInertialSensors()
       }
@@ -177,95 +177,116 @@ public class EvsKitModule: Module {
     // --- Auth (IEvsAuthService) --------------------------------------------------
 
     AsyncFunction("setApiKeyName") { (fileNameWithoutExt: String) -> Void in
-      Evs.instance().auth().setApiKeyName(fileNameWithoutExt)
+      Evs.instance().auth().setApiKeyName(fileNameWithoutExt: fileNameWithoutExt)
     }
 
     AsyncFunction("setApiKey") { (base64Key: String) -> Void in
       guard let data = Data(base64Encoded: base64Key) else { return }
-      Evs.instance().auth().setApiKey(apiKey: data)
+      let byteArray = KotlinByteArray(size: Int32(data.count))
+      for i in 0..<data.count {
+        byteArray.set(index: Int32(i), value: Int8(data[i]))
+      }
+      Evs.instance().auth().setApiKey(apiKey: byteArray)
     }
   }
 
   // ---------------------------------------------------------------------------
   // Wires the SDK's delegate/callback-style listeners to this module's
   // `sendEvent(...)`, mirroring the Android implementation.
+  //
+  // The handler classes are declared at class scope (not inside the method)
+  // so the stored properties above can reference them, and each implements
+  // the full protocol surface required by the SDK.
+  //
+  // Note: Expo's `sendEvent` requires a `[String: Any?]` dictionary as the
+  // payload — plain values are not accepted.
   // ---------------------------------------------------------------------------
 
-  private func registerNativeListeners() {
-    class GlassesEventsHandler: IEvsGlassesEvents {
-      weak var module: EvsKitModule?
-      func onTouch(touch: TouchDirection) {
-        module?.sendEvent("onTouch", ["direction": String(describing: touch)])
-      }
-      func onBatteryChanged(percentage: Int32) {
-        module?.sendEvent("onGlassesInfoChanged", ["batteryLevel": percentage])
-      }
-      func onChargerStateChanged(isChargerConnected: Bool) {
-        module?.sendEvent("onGlassesInfoChanged", ["isCharging": isChargerConnected])
-      }
-      func onDisplayState(isDisplayOn: Bool) {
-        // Not mapped to JS — display state is internal
-      }
-      func onPowerButton(action: PowerButtonAction) {
-        // Not mapped to JS — power button is a hardware event
-      }
-      func onBrightnessChangeRequested(value: Int16) {
-        // Not mapped to JS — brightness changes are handled by setBrightness
-      }
-      func onProximity(state: ProximityActionType) {
-        module?.sendEvent("onProximity", state == .onFace ? "onFace" : "offFace")
-      }
+  private class GlassesEventsHandler: IEvsGlassesEvents {
+    weak var module: EvsKitModule?
+    func onTouch(touch: TouchDirection) {
+      module?.sendEvent("onTouch", ["direction": String(describing: touch)])
     }
+    func onBatteryChanged(percentage: Int32) {
+      module?.sendEvent("onGlassesInfoChanged", ["batteryLevel": percentage])
+    }
+    func onChargerStateChanged(isChargerConnected: Bool) {
+      module?.sendEvent("onGlassesInfoChanged", ["isCharging": isChargerConnected])
+    }
+    func onDisplayState(isDisplayOn: Bool) {
+      // Not mapped to JS — display state is internal
+    }
+    func onPowerButton(action: PowerButtonAction) {
+      // Not mapped to JS — power button is a hardware event
+    }
+    func onBrightnessChangeRequested(value: Int16) {
+      // Not mapped to JS — brightness changes are handled by setBrightness
+    }
+    func onProximity(state: ProximityActionType) {
+      module?.sendEvent("onProximity", ["state": state == .onface ? "onFace" : "offFace"])
+    }
+  }
+
+  private class SensorsEventsHandler: IEvsSensorsEvents {
+    weak var module: EvsKitModule?
+    func onAmbient(lux: Float) {
+      module?.sendEvent("onAmbient", ["lux": lux])
+    }
+    func onProximity(proximity: ProximityActionType) -> Bool {
+      module?.sendEvent("onProximity", ["state": proximity == .onface ? "onFace" : "offFace"])
+      return true
+    }
+    func onSensorEnableChange(sType: SensorType, isEnabled: Bool) {
+      // Not mapped to JS — sensor enable state is internal
+    }
+    func onSensorEnableRequested(sType: SensorType, isEnabledRequested: Bool) {
+      // Not mapped to JS — sensor enable requests are handled internally
+    }
+  }
+
+  private class YprEventsHandler: IEvsYprSensorsEvents {
+    weak var module: EvsKitModule?
+    func onYpr(timestampMs: Int64, yprData: YprData, calibrationStatus: CalibrationStatus) {
+      module?.sendEvent("onYpr", [
+        "timestampMs": timestampMs,
+        "data": ["yaw": yprData.yaw, "pitch": yprData.pitch, "roll": yprData.roll],
+        "calibrationStatus": String(describing: calibrationStatus)
+      ])
+    }
+  }
+
+  private class QuaternionEventsHandler: IEvsQuaternionSensorsEvents {
+    weak var module: EvsKitModule?
+    func onQuaternion(timestampMs: Int64, quaternionsData: QuaternionData, calibrationStatus: CalibrationStatus) {
+      module?.sendEvent("onQuaternion", [
+        "timestampMs": timestampMs,
+        "data": [
+          "w": quaternionsData.w,
+          "x": quaternionsData.x,
+          "y": quaternionsData.y,
+          "z": quaternionsData.z
+        ],
+        "calibrationStatus": String(describing: calibrationStatus)
+      ])
+    }
+  }
+
+  private func registerNativeListeners() {
     let glassesHandler = GlassesEventsHandler()
     glassesHandler.module = self
     glassesEventsHandle = glassesHandler
     Evs.instance().glasses().registerGlassesEvents(listener: glassesHandler)
 
-    class SensorsEventsHandler: IEvsSensorsEvents {
-      weak var module: EvsKitModule?
-      func onAmbient(lux: Float) {
-        module?.sendEvent("onAmbient", lux)
-      }
-      func onProximity(proximity: ProximityActionType) -> Bool {
-        module?.sendEvent("onProximity", proximity == .onFace ? "onFace" : "offFace")
-        return true
-      }
-    }
     let sensorsHandler = SensorsEventsHandler()
     sensorsHandler.module = self
     sensorsEventsHandle = sensorsHandler
     Evs.instance().sensors().registerSensorsEvents(listener: sensorsHandler)
 
-    class YprEventsHandler: IEvsYprSensorsEvents {
-      weak var module: EvsKitModule?
-      func onYpr(timestampMs: Int64, yprData: YprData, calibrationStatus: CalibrationStatus) {
-        module?.sendEvent("onYpr", [
-          "timestampMs": timestampMs,
-          "data": ["yaw": yprData.yaw, "pitch": yprData.pitch, "roll": yprData.roll],
-          "calibrationStatus": String(describing: calibrationStatus)
-        ])
-      }
-    }
     let yprHandler = YprEventsHandler()
     yprHandler.module = self
     yprEventsHandle = yprHandler
     Evs.instance().sensors().registerYprSensorsEvents(listener: yprHandler)
 
-    class QuaternionEventsHandler: IEvsQuaternionSensorsEvents {
-      weak var module: EvsKitModule?
-      func onQuaternion(timestampMs: Int64, quaternionsData: QuaternionData, calibrationStatus: CalibrationStatus) {
-        module?.sendEvent("onQuaternion", [
-          "timestampMs": timestampMs,
-          "data": [
-            "w": quaternionsData.w,
-            "x": quaternionsData.x,
-            "y": quaternionsData.y,
-            "z": quaternionsData.z
-          ],
-          "calibrationStatus": String(describing: calibrationStatus)
-        ])
-      }
-    }
     let quaternionHandler = QuaternionEventsHandler()
     quaternionHandler.module = self
     quaternionEventsHandle = quaternionHandler

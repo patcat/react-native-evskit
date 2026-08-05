@@ -1,0 +1,17 @@
+[
+  {
+    "version": 121,
+    "releaseDate": "17.02.2024",
+    "required": false,
+    "formal": true,
+    "description": "Formal 121",
+    "cpu": {
+      "fileNameSt": "stm32wb.color.121.enc",
+      "fileNameMaxim": "max32650.121.enc"
+    },
+    "ble": {
+      "versionBle" : 0,
+      "fileNameBle": ""
+    }
+  }
+]

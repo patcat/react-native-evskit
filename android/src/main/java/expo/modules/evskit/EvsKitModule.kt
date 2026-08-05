@@ -45,7 +45,7 @@ class EvsKitModule : Module() {
   private var sensorsEventsHandle: IEvsSensorsEvents? = null
 
   override fun definition() = ModuleDefinition {
-    Name("EvsKit")
+    Name("RNEvsKit")
 
     Events(
       "onConnectionStateChanged",

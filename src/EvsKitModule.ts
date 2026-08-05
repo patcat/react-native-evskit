@@ -62,4 +62,4 @@ declare class EvsKitNativeModule extends NativeModule<EvsKitEvents> {
   setApiKey(base64Key: string): Promise<void>;
 }
 
-export default requireNativeModule<EvsKitNativeModule>('EvsKit');
+export default requireNativeModule<EvsKitNativeModule>('RNEvsKit');
