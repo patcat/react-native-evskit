@@ -1,12 +1,10 @@
 # react-native-evskit
 
-A tidy, modular Expo Module bridge for Everysight's [Maverick SDK](https://everysight.github.io/maverick_docs/) (`EvsKit` + `NativeEvsKit`), covering communication (BLE connect/pair), glasses state, display/brightness, sensors, auth, and the SDK's built-in stock UI screens.
+A modular Expo Module bridge for Everysight's [Maverick SDK](https://everysight.github.io/maverick_docs/) (`EvsKit` + `NativeEvsKit`), covering communication (BLE connect/pair), glasses state, display/brightness, sensors, auth, and the SDK's built-in stock UI screens.
 
 ## Status
 
-The native module calls into `Evs.instance()...` are wired up in both `EvsKitModule.kt` and `EvsKitModule.swift`. Note - you need Everysight's `sdk.key` / GitHub Packages access to compile against the SDK.
-
-Everything in `src/` (the TypeScript API, types, event system, React hook) is complete and shouldn't need changes.
+The native module calls into `Evs.instance()...` are wired up in both `EvsKitModule.kt` and `EvsKitModule.swift`. The sample app consumes this package from a local `link:` dependency. You need an Everysight `sdk.key` and GitHub Packages access to compile the Android SDK.
 
 ## Project layout
 
@@ -21,43 +19,61 @@ react-native-evskit/
 │  ├─ build.gradle
 │  └─ src/main/java/expo/modules/evskit/EvsKitModule.kt
 ├─ ios/
-│  ├─ EvsKit.podspec
+│  ├─ RNEvsKit.podspec
 │  └─ EvsKitModule.swift
 ├─ plugin/
-│  └─ withEverysightSPM.js  # Adds the SPM package to the Xcode project on prebuild
+│  └─ withEverysightBundleResources.js  # Adds SDK key files to the app bundle
 ├─ app.plugin.js            # Config plugin entry point Expo looks for
 └─ expo-module.config.json
 ```
 
-The JS API is grouped to match the SDK's own `IEvsApp` service breakdown (`comm()`, `glasses()`, `display()`, `sensors()`, `auth()`), so anything in the Maverick docs maps directly onto an equivalent call here:
+The JS API is grouped to match the SDK's own `IEvsApp` service breakdown (`comm()`, `glasses()`, `display()`, `sensors()`, `auth()`), so anything in the Maverick docs maps directly onto an equivalent call here. Initialise the SDK from within a `React.useEffect`, the exported screen/component itself must remain synchronous:
 
 ```ts
-import { EvsKit, EvsComm, EvsGlasses, EvsDisplay, EvsSensors, useEvsKitEvent } from 'react-native-evskit';
+import * as React from 'react';
+import { EvsKit, EvsComm, EvsDisplay, EvsSensors, useEvsKitEvent } from 'react-native-evskit';
 
-await EvsKit.start();
+export function HomeScreen() {
+  React.useEffect(() => {
+    async function initEvsKit() {
+      await EvsKit.start();
+      if (await EvsComm.hasConfiguredDevice()) {
+        await EvsComm.connect();
+      } else {
+        await EvsKit.ui.show('configure');
+      }
+      await EvsSensors.enableTouch(true);
+      await EvsDisplay.setAutoBrightness({ enabled: true });
+    }
 
-if (await EvsComm.hasConfiguredDevice()) {
-  await EvsComm.connect();
-} else {
-  // Simplest path: let the SDK's own scan/pair UI handle it
-  await EvsKit.ui.show('configure');
+    void initEvsKit();
+  }, []);
+
+  useEvsKitEvent('onTouch', (direction) => {
+    if (direction === 'tap') {
+      // show a popup, trigger an action, etc.
+    }
+  });
+
+  return null;
 }
-
-useEvsKitEvent('onTouch', (direction) => {
-  if (direction === 'tap') {
-    // show a popup, trigger an action, etc.
-  }
-});
-
-await EvsSensors.enableTouch(true);
-await EvsDisplay.setAutoBrightness({ enabled: true });
 ```
 
 ## Setup
 
 ### 1. Install this module
 
-Since it's not (yet) published, use it as a local Expo module — copy this folder into `modules/evskit` in your app and it'll autolink automatically (Expo autolinking picks up any package with `expo-module.config.json` under `modules/`), or publish it to a private npm registry.
+The sample app currently uses the package directly from this repository:
+
+```json
+{
+  "dependencies": {
+    "react-native-evskit": "link:../react-native-evskit"
+  }
+}
+```
+
+From `SampleEvsKitProject/`, install dependencies with `pnpm install`. Expo autolinking discovers the package through `expo-module.config.json`. If you use another app, install the published package or use an equivalent local dependency and add `react-native-evskit` to that app's Expo plugins.
 
 ### 2. Android
 
@@ -65,36 +81,29 @@ Follow the [Android setup guide](https://everysight.github.io/maverick_docs/libr
 
 - Add the Everysight GitHub Packages Maven repo (already referenced in `android/build.gradle` — set `EVERYSIGHT_GITHUB_USERNAME` / `EVERYSIGHT_GITHUB_TOKEN` env vars, or the equivalent `gradle.properties` keys, with a PAT scoped to `read:packages`).
 - Add the `proguard-rules.pro` entries from the docs if you enable minify.
-- Place your `sdk.key` (dev) or `app.key` (prod) file as an Android resource.
+- Place your `sdk.key` (development) or `app.key` (production) file as an Android resource.
 - Add `<uses-permission android:name="android.permission.INTERNET" />` — this module doesn't touch your `AndroidManifest.xml`, since you're likely managing permissions via an Expo config plugin already, given your `expo-build-properties` workarounds elsewhere in the project.
 
 ### 3. iOS
 
-CocoaPods can't consume Swift Package Manager dependencies directly, and [m1-ios-spm](https://github.com/everysight-maverick/m1-ios-spm) — confirmed by reading that repo — is *only* a `Package.swift` pointing at two prebuilt binary targets (`EvsKit.xcframework.zip`, `NativeEvsKit.xcframework.zip`), no source. So this package ships a **config plugin**, `withEverysightSPM`, that adds the SPM package reference and links both products (`EvsKit`, `NativeEvsKit`) to your app target automatically on every `expo prebuild` — no manual Xcode step, no drift after a clean prebuild.
+This package includes the prebuilt `EvsKit.xcframework` and `NativeEvsKit.xcframework` in its podspec. Expo autolinking adds `RNEvsKit.podspec` to the app's Podfile, and CocoaPods links both frameworks when you run `pnpm ios` or regenerate native projects.
 
-Enable it in `app.json` / `app.config.js`:
-
-```json
-{
-  "expo": {
-    "plugins": ["react-native-evskit"]
-  }
-}
-```
-
-Or pin a specific SDK version (defaults to `2.6.1`, matching the Android setup guide):
+The active config plugin adds key files to the app bundle. Enable the package plugin in `app.config.ts` and provide the key path:
 
 ```json
 {
-  "expo": {
-    "plugins": [["react-native-evskit", { "version": "2.6.1" }]]
-  }
+  "plugins": [
+    ["react-native-evskit", { "bundleResources": ["./sdk.key"] }]
+  ]
 }
 ```
 
-**Caveat on how this plugin works:** `@expo/config-plugins` (and the underlying `xcode` npm package) has no first-class API for SPM package references, so `plugin/withEverysightSPM.js` writes the `XCRemoteSwiftPackageReference` / `XCSwiftPackageProductDependency` pbxproj entries directly. It's written to be idempotent and defensive, but pbxproj manipulation by hand is inherently more fragile than a real API — if a future Xcode project format change breaks it, the fallback is opening `ios/YourApp.xcworkspace` and adding the package manually via `File > Add Packages...` with the URL/version above, then dropping the plugin from `app.json`.
+Typically, this is configured in `app.config.ts`:
 
-Place your `sdk.key` / `app.key` as a bundle resource (add it via `expo.ios.bundleResources` in app.config or your own plugin, depending on how you're already managing resources).
+```ts
+['react-native-evskit', { bundleResources: ['./sdk.key'] }]
+```
+Do not commit key files. Keep `sdk.key` at the project root and then the plugin adds it to the generated iOS Resources build phase.
 
 #### Android — GitHub Packages credentials
 
@@ -130,21 +139,11 @@ source .env
 
 Then run `./gradlew build` to verify.
 
-#### iOS — SPM package
+#### iOS — local Metro development
 
-The iOS SDK is distributed as an SPM package at `https://github.com/everysight-maverick/m1-ios-spm`. No credentials are needed — it's a public repo with prebuilt binary `.xcframework.zip` releases (`EvsKit` and `NativeEvsKit`).
+When running in simulator, as you'll see in the sample app, you may need the `ios` script to run something like this `cross-env REACT_NATIVE_PACKAGER_HOSTNAME=localhost expo run:ios`.
 
-The included `plugin/withEverysightSPM.js` config plugin handles adding the SPM package reference automatically during `expo prebuild`. Just make sure the plugin is enabled in your `app.json`:
-
-```json
-{
-  "expo": {
-    "plugins": ["react-native-evskit"]
-  }
-}
-```
-
-If you hit a prebuild issue with the pbxproj manipulation, the fallback is opening `ios/YourApp.xcworkspace` in Xcode and adding the package manually via `File > Add Packages...` using the URL above, then removing the plugin from `app.json`.
+This is apparently required when macOS selects an interface such as an iPhone hotspot address (`192.0.0.2`). Without it, the simulator can try to load Metro over an HTTP address that iOS App Transport Security rejects. For another app, use `REACT_NATIVE_PACKAGER_HOSTNAME=localhost` with `expo run:ios` when the simulator and Metro run on the same Mac.
 
 ## Notes / deliberate scope cuts
 

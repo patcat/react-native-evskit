@@ -1,6 +1,6 @@
-const { withXcodeProject } = require('@expo/config-plugins');
-const fs = require('fs');
-const path = require('path');
+const { withXcodeProject } = require("@expo/config-plugins");
+const fs = require("fs");
+const path = require("path");
 
 /**
  * Adds Everysight's Maverick SDK (EvsKit + NativeEvsKit) as a Swift Package
@@ -31,9 +31,9 @@ const path = require('path');
  * @param {{ version?: string }} [options]
  */
 function withEverysightSPM(config, options = {}) {
-  const packageURL = 'https://github.com/everysight-maverick/m1-ios-spm.git';
-  const versionRequirement = options.version ?? '2.6.1';
-  const products = ['EvsKit', 'NativeEvsKit'];
+  const packageURL = "https://github.com/everysight-maverick/m1-ios-spm.git";
+  const versionRequirement = options.version ?? "2.6.1";
+  const products = ["EvsKit", "NativeEvsKit"];
 
   config = withXcodeProject(config, (config) => {
     const project = config.modResults;
@@ -53,23 +53,26 @@ function withEverysightSPM(config, options = {}) {
  */
 function addSwiftPackage(project, repositoryURL, exactVersion, productNames) {
   const objects = project.hash.project.objects;
-  objects.XCRemoteSwiftPackageReference = objects.XCRemoteSwiftPackageReference || {};
-  objects.XCSwiftPackageProductDependency = objects.XCSwiftPackageProductDependency || {};
+  objects.XCRemoteSwiftPackageReference =
+    objects.XCRemoteSwiftPackageReference || {};
+  objects.XCSwiftPackageProductDependency =
+    objects.XCSwiftPackageProductDependency || {};
 
   // --- 1. Find or create the XCRemoteSwiftPackageReference ------------------
   let packageRefUuid = Object.keys(objects.XCRemoteSwiftPackageReference).find(
     (key) =>
-      !key.endsWith('_comment') &&
-      objects.XCRemoteSwiftPackageReference[key].repositoryURL === JSON.stringify(repositoryURL)
+      !key.endsWith("_comment") &&
+      objects.XCRemoteSwiftPackageReference[key].repositoryURL ===
+        JSON.stringify(repositoryURL),
   );
 
   if (!packageRefUuid) {
     packageRefUuid = project.generateUuid();
     objects.XCRemoteSwiftPackageReference[packageRefUuid] = {
-      isa: 'XCRemoteSwiftPackageReference',
+      isa: "XCRemoteSwiftPackageReference",
       repositoryURL: JSON.stringify(repositoryURL),
       requirement: {
-        kind: 'exactVersion',
+        kind: "exactVersion",
         version: exactVersion,
       },
     };
@@ -81,7 +84,9 @@ function addSwiftPackage(project, repositoryURL, exactVersion, productNames) {
     const rootObjectUuid = project.hash.project.rootObject;
     const rootObject = objects.PBXProject[rootObjectUuid];
     rootObject.packageReferences = rootObject.packageReferences || [];
-    if (!rootObject.packageReferences.some((ref) => ref.value === packageRefUuid)) {
+    if (
+      !rootObject.packageReferences.some((ref) => ref.value === packageRefUuid)
+    ) {
       rootObject.packageReferences.push({
         value: packageRefUuid,
         comment: 'XCRemoteSwiftPackageReference "m1-ios-spm"',
@@ -92,46 +97,55 @@ function addSwiftPackage(project, repositoryURL, exactVersion, productNames) {
   // --- 2. Find or create a XCSwiftPackageProductDependency per product ------
   const target = project.getFirstTarget();
   const nativeTarget = objects.PBXNativeTarget[target.uuid];
-  nativeTarget.packageProductDependencies = nativeTarget.packageProductDependencies || [];
+  nativeTarget.packageProductDependencies =
+    nativeTarget.packageProductDependencies || [];
 
   // Also link SPM products to the pod target (RNEvsKit) so that the Swift
   // module can import EvsKit and NativeEvsKit. The pod is compiled as a
   // separate target and needs the SPM products linked to it.
   const podTargetUuid = Object.keys(objects.PBXNativeTarget).find(
     (key) =>
-      !key.endsWith('_comment') &&
+      !key.endsWith("_comment") &&
       objects.PBXNativeTarget[key].productReference &&
-      objects.PBXNativeTarget[key].buildConfigurationList
+      objects.PBXNativeTarget[key].buildConfigurationList,
   );
-  const podTarget = podTargetUuid ? objects.PBXNativeTarget[podTargetUuid] : null;
+  const podTarget = podTargetUuid
+    ? objects.PBXNativeTarget[podTargetUuid]
+    : null;
 
   const frameworksBuildPhaseUuid = nativeTarget.buildPhases.find((phase) =>
-    /Frameworks/i.test(phase.comment || '')
+    /Frameworks/i.test(phase.comment || ""),
   )?.value;
   const frameworksPhase = frameworksBuildPhaseUuid
     ? objects.PBXFrameworksBuildPhase[frameworksBuildPhaseUuid]
     : undefined;
 
   for (const productName of productNames) {
-    let productDepUuid = Object.keys(objects.XCSwiftPackageProductDependency).find(
+    let productDepUuid = Object.keys(
+      objects.XCSwiftPackageProductDependency,
+    ).find(
       (key) =>
-        !key.endsWith('_comment') &&
-        objects.XCSwiftPackageProductDependency[key].productName === productName
+        !key.endsWith("_comment") &&
+        objects.XCSwiftPackageProductDependency[key].productName ===
+          productName,
     );
 
     if (!productDepUuid) {
       productDepUuid = project.generateUuid();
       objects.XCSwiftPackageProductDependency[productDepUuid] = {
-        isa: 'XCSwiftPackageProductDependency',
+        isa: "XCSwiftPackageProductDependency",
         package: packageRefUuid,
         productName,
       };
-      objects.XCSwiftPackageProductDependency[`${productDepUuid}_comment`] = productName;
+      objects.XCSwiftPackageProductDependency[`${productDepUuid}_comment`] =
+        productName;
     }
 
     // Add to app target
     if (
-      !nativeTarget.packageProductDependencies.some((dep) => dep.value === productDepUuid)
+      !nativeTarget.packageProductDependencies.some(
+        (dep) => dep.value === productDepUuid,
+      )
     ) {
       nativeTarget.packageProductDependencies.push({
         value: productDepUuid,
@@ -141,9 +155,12 @@ function addSwiftPackage(project, repositoryURL, exactVersion, productNames) {
 
     // Also add to pod target (RNEvsKit) so the Swift module can import these
     if (podTarget) {
-      podTarget.packageProductDependencies = podTarget.packageProductDependencies || [];
+      podTarget.packageProductDependencies =
+        podTarget.packageProductDependencies || [];
       if (
-        !podTarget.packageProductDependencies.some((dep) => dep.value === productDepUuid)
+        !podTarget.packageProductDependencies.some(
+          (dep) => dep.value === productDepUuid,
+        )
       ) {
         podTarget.packageProductDependencies.push({
           value: productDepUuid,
@@ -158,18 +175,19 @@ function addSwiftPackage(project, repositoryURL, exactVersion, productNames) {
       objects.PBXBuildFile = objects.PBXBuildFile || {};
       const alreadyLinked = Object.keys(objects.PBXBuildFile).some(
         (key) =>
-          !key.endsWith('_comment') &&
-          objects.PBXBuildFile[key].productRef === productDepUuid
+          !key.endsWith("_comment") &&
+          objects.PBXBuildFile[key].productRef === productDepUuid,
       );
 
       if (!alreadyLinked) {
         const buildFileUuid = project.generateUuid();
         objects.PBXBuildFile[buildFileUuid] = {
-          isa: 'PBXBuildFile',
+          isa: "PBXBuildFile",
           productRef: productDepUuid,
           productRef_comment: productName,
         };
-        objects.PBXBuildFile[`${buildFileUuid}_comment`] = `${productName} in Frameworks`;
+        objects.PBXBuildFile[`${buildFileUuid}_comment`] =
+          `${productName} in Frameworks`;
 
         frameworksPhase.files = frameworksPhase.files || [];
         frameworksPhase.files.push({
@@ -194,28 +212,30 @@ function addModuleSourcesToAppTarget(project, projectRoot) {
 
   // Find the Sources build phase
   const sourcesPhaseUuid = nativeTarget.buildPhases.find((phase) =>
-    /Sources/i.test(phase.comment || '')
+    /Sources/i.test(phase.comment || ""),
   )?.value;
   const sourcesPhase = sourcesPhaseUuid
     ? objects.PBXSourcesBuildPhase[sourcesPhaseUuid]
     : undefined;
   if (!sourcesPhase) return;
 
-  const moduleDir = path.join(path.dirname(__dirname), 'ios');
-  const sourceFiles = fs.readdirSync(moduleDir).filter((f) => f.endsWith('.swift'));
+  const moduleDir = path.join(path.dirname(__dirname), "ios");
+  const sourceFiles = fs
+    .readdirSync(moduleDir)
+    .filter((f) => f.endsWith(".swift"));
 
   // The Xcode project lives in <projectRoot>/ios, so the file reference path
   // must be relative to that directory (e.g. "../../react-native-evskit/ios").
-  const iosDir = path.join(projectRoot, 'ios');
+  const iosDir = path.join(projectRoot, "ios");
   const moduleDirRelativeToIos = path.relative(iosDir, moduleDir);
 
   for (const fileName of sourceFiles) {
     // Check if already added
     const alreadyAdded = Object.keys(objects.PBXBuildFile || {}).some(
       (key) =>
-        !key.endsWith('_comment') &&
+        !key.endsWith("_comment") &&
         objects.PBXBuildFile[key].fileRef &&
-        objects.PBXBuildFile[key].fileRef_comment === fileName
+        objects.PBXBuildFile[key].fileRef_comment === fileName,
     );
     if (alreadyAdded) continue;
 
@@ -223,8 +243,8 @@ function addModuleSourcesToAppTarget(project, projectRoot) {
     const fileRefUuid = project.generateUuid();
     objects.PBXFileReference = objects.PBXFileReference || {};
     objects.PBXFileReference[fileRefUuid] = {
-      isa: 'PBXFileReference',
-      explicitFileType: 'sourcecode.swift',
+      isa: "PBXFileReference",
+      explicitFileType: "sourcecode.swift",
       fileEncoding: 4,
       name: fileName,
       path: path.join(moduleDirRelativeToIos, fileName),
@@ -239,7 +259,7 @@ function addModuleSourcesToAppTarget(project, projectRoot) {
     const buildFileUuid = project.generateUuid();
     objects.PBXBuildFile = objects.PBXBuildFile || {};
     objects.PBXBuildFile[buildFileUuid] = {
-      isa: 'PBXBuildFile',
+      isa: "PBXBuildFile",
       fileRef: fileRefUuid,
     };
     objects.PBXBuildFile[`${buildFileUuid}_comment`] = `${fileName} in Sources`;

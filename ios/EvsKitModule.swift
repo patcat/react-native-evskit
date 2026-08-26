@@ -49,9 +49,12 @@ public class EvsKitModule: Module {
     // --- Lifecycle -----------------------------------------------------------
 
     AsyncFunction("start") { () -> Void in
-      Evs.instance().start()
-      if Evs.instance().comm().hasConfiguredDevice() {
-        Evs.instance().comm().connect()
+      // Evs.instance().start() can present the SDK's stock UI, which must happen on the main thread.
+      await MainActor.run { () -> Void in
+        Evs.instance().start()
+        if Evs.instance().comm().hasConfiguredDevice() {
+          Evs.instance().comm().connect()
+        }
       }
     }
 
@@ -62,7 +65,10 @@ public class EvsKitModule: Module {
     // --- Stock UI --------------------------------------------------------------
 
     AsyncFunction("showUI") { (screen: String) -> Void in
-      Evs.instance().showUI(name: screen)
+      // Presents a view controller, which must happen on the main thread.
+      await MainActor.run { () -> Void in
+        Evs.instance().showUI(name: screen)
+      }
     }
 
     // --- Communication (IEvsCommunicationService) -----------------------------
@@ -72,11 +78,16 @@ public class EvsKitModule: Module {
     }
 
     AsyncFunction("connect") { () -> Void in
-      Evs.instance().comm().connect()
+      // May trigger the SDK's auth/pairing UI, which must happen on the main thread.
+      await MainActor.run { () -> Void in
+        Evs.instance().comm().connect()
+      }
     }
 
     AsyncFunction("connectSecured") { () -> Void in
-      Evs.instance().comm().connectSecured()
+      await MainActor.run { () -> Void in
+        Evs.instance().comm().connectSecured()
+      }
     }
 
     AsyncFunction("disconnect") { () -> Void in

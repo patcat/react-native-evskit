@@ -19,11 +19,7 @@ export interface EvsDeviceInfo {
 }
 
 export type EvsConnectionState =
-  | 'disconnected'
-  | 'connecting'
-  | 'connected'
-  | 'authenticating'
-  | 'error';
+  "disconnected" | "connecting" | "connected" | "authenticating" | "error";
 
 // ---------------------------------------------------------------------------
 // Glasses (IEvsGlassesStateService)
@@ -40,9 +36,9 @@ export interface EvsGlassesInfo {
   firmwareVersion: number;
 }
 
-export type TouchDirection = 'backward' | 'forward' | 'tap' | 'longTap';
+export type TouchDirection = "backward" | "forward" | "tap" | "longTap";
 
-export type ProximityEvent = 'onFace' | 'offFace';
+export type ProximityEvent = "onFace" | "offFace";
 
 // ---------------------------------------------------------------------------
 // Display (IEvsDisplayService)
@@ -56,10 +52,10 @@ export interface EvsAutoBrightnessOptions {
 // Sensors (IEvsSensorsService)
 // ---------------------------------------------------------------------------
 
-export type CalibrationStatus = 'calibrated' | 'inProgress' | 'required';
+export type CalibrationStatus = "calibrated" | "inProgress" | "required";
 
 /** Currently only rate0 and rate1 are operational per the SDK docs; the rest are experimental. */
-export type SensorRate = 'rate0' | 'rate1' | 'rate2' | 'rate3';
+export type SensorRate = "rate0" | "rate1" | "rate2" | "rate3";
 
 export interface EvsYprData {
   yaw: number;
@@ -97,7 +93,7 @@ export interface EvsQuaternionSample extends EvsSensorSample<EvsQuaternionData> 
 // Stock UI (Evs.instance().showUI(...))
 // ---------------------------------------------------------------------------
 
-export type EvsStockUIScreen = 'configure' | 'adjust' | 'calibrate';
+export type EvsStockUIScreen = "configure" | "adjust" | "calibrate";
 
 // ---------------------------------------------------------------------------
 // Auth (IEvsAuthService) / lifecycle events (IEvsAppEvents)

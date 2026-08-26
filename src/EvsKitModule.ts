@@ -1,4 +1,4 @@
-import { NativeModule, requireNativeModule } from 'expo-modules-core';
+import { NativeModule, requireNativeModule } from "expo-modules-core";
 
 import type {
   EvsAutoBrightnessOptions,
@@ -6,7 +6,7 @@ import type {
   EvsGlassesInfo,
   EvsKitEvents,
   EvsStockUIScreen,
-} from './EvsKit.types';
+} from "./EvsKit.types";
 
 /**
  * Raw native surface. This intentionally mirrors the SDK's service methods
@@ -62,4 +62,4 @@ declare class EvsKitNativeModule extends NativeModule<EvsKitEvents> {
   setApiKey(base64Key: string): Promise<void>;
 }
 
-export default requireNativeModule<EvsKitNativeModule>('RNEvsKit');
+export default requireNativeModule<EvsKitNativeModule>("RNEvsKit");

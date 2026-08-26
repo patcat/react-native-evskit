@@ -1,16 +1,16 @@
-import { useEffect } from 'react';
-import type { EventSubscription } from 'expo-modules-core';
+import type { EventSubscription } from "expo-modules-core";
+import { useEffect } from "react";
 
-import EvsKitNative from './EvsKitModule';
 import type {
   EvsAutoBrightnessOptions,
   EvsDeviceInfo,
   EvsGlassesInfo,
   EvsKitEvents,
   EvsStockUIScreen,
-} from './EvsKit.types';
+} from "./EvsKit.types";
+import EvsKitNative from "./EvsKitModule";
 
-export * from './EvsKit.types';
+export * from "./EvsKit.types";
 
 /**
  * Communication service — mirrors IEvsCommunicationService
@@ -145,7 +145,7 @@ export default EvsKit;
 /** Subscribe to a single EvsKit event; call the returned function to unsubscribe. */
 export function addEvsKitListener<K extends keyof EvsKitEvents>(
   eventName: K,
-  listener: EvsKitEvents[K]
+  listener: EvsKitEvents[K],
 ): EventSubscription {
   return EvsKitNative.addListener(eventName, listener as any);
 }
@@ -162,7 +162,7 @@ export function addEvsKitListener<K extends keyof EvsKitEvents>(
  */
 export function useEvsKitEvent<K extends keyof EvsKitEvents>(
   eventName: K,
-  listener: EvsKitEvents[K]
+  listener: EvsKitEvents[K],
 ) {
   useEffect(() => {
     const subscription = addEvsKitListener(eventName, listener);
