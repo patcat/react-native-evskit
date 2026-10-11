@@ -1,7 +1,14 @@
 {
-  "name": "react-native-evskit",
-  "version": "0.1.0",
+  "name": "@therealitycrafters/react-native-evskit",
+  "version": "0.1.1",
   "description": "React Native / Expo bridge for Everysight's Maverick SDK (EvsKit + NativeEvsKit)",
+  "author": "Patrick Catanzariti",
+  "homepage": "https://therealitycrafters.com",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/patcat/react-native-evskit.git"
+  },
   "main": "build/index.js",
   "types": "build/index.d.ts",
   "source": "src/index.ts",
@@ -10,6 +17,8 @@
     "src",
     "android",
     "ios",
+    "plugin",
+    "app.plugin.js",
     "expo-module.config.json"
   ],
   "scripts": {

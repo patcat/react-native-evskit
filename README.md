@@ -31,7 +31,7 @@ The JS API is grouped to match the SDK's own `IEvsApp` service breakdown (`comm(
 
 ```ts
 import * as React from 'react';
-import { EvsKit, EvsComm, EvsDisplay, EvsSensors, useEvsKitEvent } from 'react-native-evskit';
+import { EvsKit, EvsComm, EvsDisplay, EvsSensors, useEvsKitEvent } from '@therealitycrafters/react-native-evskit';
 
 export function HomeScreen() {
   React.useEffect(() => {
@@ -73,7 +73,7 @@ The sample app currently uses the package directly from this repository:
 }
 ```
 
-From `SampleEvsKitProject/`, install dependencies with `pnpm install`. Expo autolinking discovers the package through `expo-module.config.json`. If you use another app, install the published package or use an equivalent local dependency and add `react-native-evskit` to that app's Expo plugins.
+From `SampleEvsKitProject/`, install dependencies with `pnpm install`. Expo autolinking discovers the package through `expo-module.config.json`. If you use another app, install the published package or use an equivalent local dependency and add `@therealitycrafters/react-native-evskit` to that app's Expo plugins.
 
 ### 2. Android
 
@@ -93,7 +93,7 @@ The active config plugin adds key files to the app bundle. Enable the package pl
 ```json
 {
   "plugins": [
-    ["react-native-evskit", { "bundleResources": ["./sdk.key"] }]
+    ["@therealitycrafters/react-native-evskit", { "bundleResources": ["./sdk.key"] }]
   ]
 }
 ```
@@ -101,7 +101,7 @@ The active config plugin adds key files to the app bundle. Enable the package pl
 Typically, this is configured in `app.config.ts`:
 
 ```ts
-['react-native-evskit', { bundleResources: ['./sdk.key'] }]
+['@therealitycrafters/react-native-evskit', { bundleResources: ['./sdk.key'] }]
 ```
 Do not commit key files. Keep `sdk.key` at the project root and then the plugin adds it to the generated iOS Resources build phase.
 
