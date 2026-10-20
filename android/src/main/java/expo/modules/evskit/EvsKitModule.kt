@@ -28,6 +28,8 @@ import UIKit.app.data.ProximityActionType
 import UIKit.app.data.YprData
 import UIKit.app.data.QuaternionData
 
+import UIKit.app.Viewport
+
 class DeviceInfoRecord : Record {
   @Field val deviceId: String = ""
   @Field val name: String = ""
@@ -43,6 +45,12 @@ class EvsKitModule : Module() {
   // down cleanly if the module is invalidated (app reload, etc).
   private var glassesEventsHandle: IEvsGlassesEvents? = null
   private var sensorsEventsHandle: IEvsSensorsEvents? = null
+
+  // Screens pushed via showScreen(id:), keyed by the JS-facing id so
+  // removeScreen(id:) can resolve the native instance. Viewport covers
+  // Screen, FullScreen and ArScreen.
+  private val activeScreens = mutableMapOf<String, Viewport>()
+  private val activeScreenOrder = mutableListOf<String>()
 
   override fun definition() = ModuleDefinition {
     Name("RNEvsKit")
@@ -61,6 +69,7 @@ class EvsKitModule : Module() {
 
     OnCreate {
       registerNativeListeners()
+      loadAppScreens()
     }
 
     OnDestroy {
@@ -94,6 +103,69 @@ class EvsKitModule : Module() {
         promise.resolve(null)
       } catch (e: Exception) {
         promise.reject("EVSKIT_SHOW_UI_FAILED", e.message, e)
+      }
+    }
+
+    // --- App-owned screens (IEvsScreenService) -------------------------------
+    //
+    // The bridge ships no Screen subclasses. Apps register their own via
+    // EvsScreenRegistry.register(id, factory) from app-owned Kotlin sources
+    // (linked at prebuild by the `screens` plugin option), then push them
+    // from JS with showScreen(id:).
+
+    AsyncFunction("showScreen") { id: String, promise: Promise ->
+      try {
+        val screen = EvsScreenRegistry.make(id)
+          ?: throw IllegalArgumentException(
+            "No screen registered for id '$id'. " +
+            "Register it via EvsScreenRegistry.register(id, factory) " +
+            "from app-owned Kotlin sources."
+          )
+        Evs.instance().screens().addScreen(screen)
+        if (!activeScreens.containsKey(id)) {
+          activeScreenOrder.add(id)
+        }
+        activeScreens[id] = screen
+        promise.resolve(null)
+      } catch (e: Exception) {
+        promise.reject("EVSKIT_SHOW_SCREEN_FAILED", e.message, e)
+      }
+    }
+
+    AsyncFunction("removeScreen") { id: String, promise: Promise ->
+      try {
+        activeScreens.remove(id)?.let { screen ->
+          Evs.instance().screens().removeScreen(screen)
+          activeScreenOrder.remove(id)
+        }
+        promise.resolve(null)
+      } catch (e: Exception) {
+        promise.reject("EVSKIT_REMOVE_SCREEN_FAILED", e.message, e)
+      }
+    }
+
+    AsyncFunction("removeTopmostScreen") { promise: Promise ->
+      try {
+        val removed = Evs.instance().screens().removeTopmostScreen()
+        val id = if (removed != null) {
+          activeScreens.entries.firstOrNull { it.value === removed }?.key?.also { found ->
+            activeScreens.remove(found)
+            activeScreenOrder.remove(found)
+          }
+        } else null
+        promise.resolve(id)
+      } catch (e: Exception) {
+        promise.reject("EVSKIT_REMOVE_TOPMOST_SCREEN_FAILED", e.message, e)
+      }
+    }
+
+    AsyncFunction("getTopmostScreen") { promise: Promise ->
+      try {
+        val topmost = Evs.instance().screens().getTopmostScreen()
+        val id = activeScreens.entries.firstOrNull { it.value === topmost }?.key
+        promise.resolve(id)
+      } catch (e: Exception) {
+        promise.reject("EVSKIT_GET_TOPMOST_SCREEN_FAILED", e.message, e)
       }
     }
 
@@ -312,6 +384,17 @@ class EvsKitModule : Module() {
   // this module's `sendEvent(...)`, so JS can subscribe via
   // `addEvsKitListener` / `useEvsKitEvent` instead of touching native code.
   // ---------------------------------------------------------------------------
+
+  // Triggers the plugin-generated app-screens registrar, if the app
+  // configured `screens.register`. Class.forName initializes the Kotlin
+  // object, running its init block. Absent = no app screens; ignore.
+  private fun loadAppScreens() {
+    try {
+      Class.forName("evs.screens.generated.EvsAppScreensGenerated")
+    } catch (_: ClassNotFoundException) {
+      // No app-owned screens configured — nothing to register.
+    }
+  }
 
   private fun registerNativeListeners() {
     glassesEventsHandle = object : IEvsGlassesEvents {

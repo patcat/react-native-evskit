@@ -23,6 +23,12 @@ public class EvsKitModule: Module {
   private var yprEventsHandle: YprEventsHandler?
   private var quaternionEventsHandle: QuaternionEventsHandler?
 
+  /// Screens pushed via showScreen(id:), keyed by the JS-facing id so
+  /// removeScreen(id:) can resolve the native instance. Viewport covers
+  /// Screen, FullScreen and ArScreen.
+  private var activeScreens: [String: Viewport] = [:]
+  private var activeScreenOrder: [String] = []
+
   public func definition() -> ModuleDefinition {
     Name("RNEvsKit")
 
@@ -69,6 +75,58 @@ public class EvsKitModule: Module {
       await MainActor.run { () -> Void in
         Evs.instance().showUI(name: screen)
       }
+    }
+
+    // --- App-owned screens (IEvsScreenService) --------------------------------
+    //
+    // The bridge ships no Screen subclasses. Apps register their own via
+    // EvsScreenRegistry.register(id:factory:) from app-owned Swift sources
+    // (linked at prebuild by the `screens` plugin option), then push them
+    // from JS with showScreen(id:).
+
+    AsyncFunction("showScreen") { (id: String) -> Void in
+      await MainActor.run { () -> Void in
+        guard let screen = EvsScreenRegistry.make(id: id) else {
+          throw Exception(
+            name: "EVSKIT_UNKNOWN_SCREEN",
+            description: "No screen registered for id '\(id)'. "
+              + "Register it via EvsScreenRegistry.register(id:factory:) "
+              + "from app-owned Swift sources."
+          )
+        }
+        Evs.instance().screens().addScreen(screen: screen)
+        if self.activeScreens[id] == nil {
+          self.activeScreenOrder.append(id)
+        }
+        self.activeScreens[id] = screen
+      }
+    }
+
+    AsyncFunction("removeScreen") { (id: String) -> Void in
+      await MainActor.run { () -> Void in
+        guard let screen = self.activeScreens[id] else { return }
+        Evs.instance().screens().removeScreen(screen: screen)
+        self.activeScreens.removeValue(forKey: id)
+        self.activeScreenOrder.removeAll { $0 == id }
+      }
+    }
+
+    AsyncFunction("removeTopmostScreen") { () -> String? in
+      await MainActor.run { () -> String? in
+        let removed: Viewport? = Evs.instance().screens().removeTopmostScreen()
+        guard let removed else { return nil }
+        if let id = self.activeScreens.first(where: { $0.value === removed })?.key {
+          self.activeScreens.removeValue(forKey: id)
+          self.activeScreenOrder.removeAll { $0 == id }
+          return id
+        }
+        return nil
+      }
+    }
+
+    AsyncFunction("getTopmostScreen") { () -> String? in
+      let topmost = Evs.instance().screens().getTopmostScreen()
+      return self.activeScreens.first(where: { $0.value === topmost })?.key
     }
 
     // --- Communication (IEvsCommunicationService) -----------------------------

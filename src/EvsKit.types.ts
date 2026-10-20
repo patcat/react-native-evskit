@@ -96,6 +96,23 @@ export interface EvsQuaternionSample extends EvsSensorSample<EvsQuaternionData> 
 export type EvsStockUIScreen = "configure" | "adjust" | "calibrate";
 
 // ---------------------------------------------------------------------------
+// App-owned screens (IEvsScreenService via EvsScreenRegistry)
+// ---------------------------------------------------------------------------
+
+/**
+ * String id of an app-owned native screen.
+ *
+ * The bridge ships no Screen subclasses. Each app registers its own
+ * Swift/Kotlin `Screen`/`FullScreen`/`ArScreen` subclasses via
+ * `EvsScreenRegistry.register(id, factory)` (iOS) /
+ * `EvsScreenRegistry.register(id, factory)` (Android) from app-owned
+ * sources — e.g. `<app>/evs-screens/ios/*.swift` linked at prebuild by the
+ * bridge config plugin's `screens` option — then pushes them with
+ * `EvsScreens.show(id)`.
+ */
+export type EvsScreenId = string;
+
+// ---------------------------------------------------------------------------
 // Auth (IEvsAuthService) / lifecycle events (IEvsAppEvents)
 // ---------------------------------------------------------------------------
 

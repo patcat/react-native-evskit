@@ -6,6 +6,7 @@ import type {
   EvsDeviceInfo,
   EvsGlassesInfo,
   EvsKitEvents,
+  EvsScreenId,
   EvsStockUIScreen,
 } from "./EvsKit.types";
 import EvsKitNative from "./EvsKitModule";
@@ -120,6 +121,32 @@ export const EvsUI = {
   },
 };
 
+/**
+ * App-owned glasses screens (`Evs.instance().screens()`).
+ *
+ * The bridge ships no Screen subclasses. Register yours natively per app —
+ * `EvsScreenRegistry.register(id, factory)` from app-owned Swift/Kotlin
+ * sources (linked at prebuild by the plugin's `screens` option) — then push
+ * them from JS:
+ *
+ * @example
+ * await EvsScreens.show("hello-world");
+ */
+export const EvsScreens = {
+  show(id: EvsScreenId) {
+    return EvsKitNative.showScreen(id);
+  },
+  remove(id: EvsScreenId) {
+    return EvsKitNative.removeScreen(id);
+  },
+  removeTopmost() {
+    return EvsKitNative.removeTopmostScreen();
+  },
+  getTopmost() {
+    return EvsKitNative.getTopmostScreen();
+  },
+};
+
 /** Top-level lifecycle, matching `Evs.init(context).start()` / `Evs.instance().start()`. */
 export const EvsKit = {
   start() {
@@ -134,6 +161,7 @@ export const EvsKit = {
   sensors: EvsSensors,
   auth: EvsAuth,
   ui: EvsUI,
+  screens: EvsScreens,
 };
 
 export default EvsKit;

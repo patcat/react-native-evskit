@@ -48,6 +48,20 @@ declare class EvsKitNativeModule extends NativeModule<EvsKitEvents> {
   setRenderingCenterX(dx: number): Promise<void>;
   setRenderingCenterY(dy: number): Promise<void>;
 
+  // --- App-owned screens (IEvsScreenService via EvsScreenRegistry) ------------
+  /**
+   * Push an app-registered screen onto the glasses screen stack.
+   * Rejects with EVSKIT_SHOW_SCREEN_FAILED / EVSKIT_UNKNOWN_SCREEN when no
+   * factory is registered for `id`.
+   */
+  showScreen(id: string): Promise<void>;
+  /** Remove a previously shown screen by id. No-op when unknown. */
+  removeScreen(id: string): Promise<void>;
+  /** Pop the topmost screen; resolves with its id, or null when empty/untracked. */
+  removeTopmostScreen(): Promise<string | null>;
+  /** Resolve the topmost tracked screen id, or null. */
+  getTopmostScreen(): Promise<string | null>;
+
   // --- Sensors (IEvsSensorsService) -------------------------------------------
   enableTouch(enabled: boolean): Promise<void>;
   enableAmbient(enabled: boolean): Promise<void>;
