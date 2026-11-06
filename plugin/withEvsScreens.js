@@ -1,4 +1,4 @@
-const { withAppBuildGradle, withXcodeProject } = require("@expo/config-plugins");
+const { withAppBuildGradle, withDangerousMod, withXcodeProject } = require("@expo/config-plugins");
 const fs = require("fs");
 const path = require("path");
 
@@ -219,20 +219,34 @@ function generatedAndroidContents(register) {
 }
 
 function withEvsAndroidScreens(config, androidScreensDir, register) {
-  const projectRoot = config.modRequest.projectRoot;
-  // Write the generated registrar into a disposable dir under android/ and
-  // compile it via an extra srcDir (same mechanism as the app-owned dir).
-  if (Object.keys(register).length) {
-    const genDir = path.join(projectRoot, "android", GENERATED_ANDROID_DIR);
-    fs.mkdirSync(genDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(genDir, `${GENERATED_ANDROID_CLASS}.kt`),
-      generatedAndroidContents(register),
-    );
+  // NOTE: config.modRequest only exists inside a mod callback — never read
+  // projectRoot at the outer plugin level (it is undefined there and crashes
+  // prebuild with "Cannot read properties of undefined").
+  const hasRegister = Object.keys(register).length > 0;
+
+  // Write the generated registrar into a disposable dir under android/.
+  // withDangerousMod runs after the native project exists, so ios/android
+  // dirs are present and modRequest.projectRoot is available.
+  if (hasRegister) {
+    config = withDangerousMod(config, [
+      "android",
+      (config) => {
+        const projectRoot = config.modRequest.projectRoot;
+        const genDir = path.join(projectRoot, "android", GENERATED_ANDROID_DIR);
+        fs.mkdirSync(genDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(genDir, `${GENERATED_ANDROID_CLASS}.kt`),
+          generatedAndroidContents(register),
+        );
+        return config;
+      },
+    ]);
   }
+
   // Register the app-owned screens dir (+ generated dir) as extra java
   // srcDirs so their .kt files compile into the app.
   config = withAppBuildGradle(config, (config) => {
+    const projectRoot = config.modRequest.projectRoot;
     const marker = "// react-native-evskit: app-owned glasses screens";
     if (config.modResults.contents.includes(marker)) {
       return config;
@@ -240,7 +254,7 @@ function withEvsAndroidScreens(config, androidScreensDir, register) {
     // Paths relative to <projectRoot>/android/app.
     const appDir = path.join(projectRoot, "android", "app");
     const srcDirs = [toPosix(path.relative(appDir, path.join(projectRoot, androidScreensDir)))];
-    if (Object.keys(register).length) {
+    if (hasRegister) {
       srcDirs.push(
         toPosix(path.relative(appDir, path.join(projectRoot, "android", GENERATED_ANDROID_DIR))),
       );

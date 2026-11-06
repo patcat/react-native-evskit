@@ -251,10 +251,7 @@ public class EvsKitModule: Module {
 
     AsyncFunction("setApiKey") { (base64Key: String) -> Void in
       guard let data = Data(base64Encoded: base64Key) else { return }
-      let byteArray = KotlinByteArray(size: Int32(data.count))
-      for i in 0..<data.count {
-        byteArray.set(index: Int32(i), value: Int8(data[i]))
-      }
+      guard let byteArray = data.toKotlinData() else { return }
       Evs.instance().auth().setApiKey(apiKey: byteArray)
     }
   }

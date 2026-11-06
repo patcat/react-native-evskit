@@ -1,6 +1,6 @@
 {
   "name": "@therealitycrafters/react-native-evskit",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "description": "React Native / Expo bridge for Everysight's Maverick SDK (EvsKit + NativeEvsKit)",
   "author": "Patrick Catanzariti",
   "homepage": "https://therealitycrafters.com",
