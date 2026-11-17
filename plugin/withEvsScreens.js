@@ -1,4 +1,9 @@
-const { withAppBuildGradle, withDangerousMod, withXcodeProject } = require("@expo/config-plugins");
+const {
+  withAppBuildGradle,
+  withAppDelegate,
+  withDangerousMod,
+  withXcodeProject,
+} = require("@expo/config-plugins");
 const fs = require("fs");
 const path = require("path");
 
@@ -34,9 +39,9 @@ const path = require("path");
 // On `expo prebuild` this:
 // - iOS: adds each app-owned .swift file to the app target's Sources phase
 //   (path relative to ios/, e.g. "../evs-screens/ios/HelloWorldScreen.swift"),
-//   and writes a generated `ios/EvsAppScreens.generated.swift` that registers
-//   every id. The generated file self-registers via top-level statements, so
-//   no AppDelegate changes are needed.
+//   and writes a generated `ios/EvsAppScreens.generated.swift` containing a
+//   registrar function. The plugin invokes it from the Swift AppDelegate so
+//   registration is not dependent on Swift global-initializer behavior.
 // - Android: registers the app-owned dir (plus a generated dir) as extra
 //   sourceSets java srcDirs, and writes a generated registrar object. The
 //   bridge loads it via Class.forName on startup (no-op when absent).
@@ -61,6 +66,12 @@ function withEvsScreens(config, { screens = {} } = {}) {
   if (androidDir) {
     config = withEvsAndroidScreens(config, androidDir, register);
   }
+  // withEvsIosAppDelegate must be called AFTER withEvsIosScreens so that:
+  // 1. withXcodeProject (inside withEvsIosScreens) runs first, adding the
+  //    generated Swift file to the Xcode project's Sources phase.
+  // 2. Then withAppDelegate (inside withEvsIosAppDelegate) runs last on
+  //    ios.appDelegate, ensuring the provider is the last mod added.
+  config = withEvsIosAppDelegate(config);
   return config;
 }
 
@@ -75,10 +86,6 @@ function toPosix(p) {
   return p.split(path.sep).join("/");
 }
 
-function sanitize(id) {
-  return id.replace(/[^A-Za-z0-9_]/g, "_");
-}
-
 module.exports = withEvsScreens;
 function generatedIosContents(register) {
   const lines = [
@@ -86,8 +93,9 @@ function generatedIosContents(register) {
     "// Registers app-owned screens (see `screens.register` in app.config).",
     "",
     "import NativeEvsKit",
-    "import RNEvsKit",
+    "internal import RNEvsKit",
     "",
+    "public func registerEvsAppScreens() {",
   ];
   for (const [id, entry] of Object.entries(register)) {
     const className = typeof entry === "string" ? entry : entry.ios;
@@ -95,16 +103,36 @@ function generatedIosContents(register) {
       continue;
     }
     lines.push(
-      `private let _evsRegister_${sanitize(id)}: Void = {`,
       `  EvsScreenRegistry.register(id: ${JSON.stringify(id)}) { ${className}() }`,
-      `}()`,
-      "",
     );
   }
-  if (!Object.keys(register).length) {
-    lines.push("// No screens registered.", "");
-  }
+  lines.push("}", "");
   return lines.join("\n");
+}
+
+function withEvsIosAppDelegate(config) {
+  return withAppDelegate(config, (config) => {
+    if (config.modResults.language !== "swift") {
+      return config;
+    }
+    const contents = config.modResults.contents;
+    const marker = "// react-native-evskit: register app-owned screens";
+    if (contents.includes(marker)) {
+      return config;
+    }
+    const launchMethod = contents.indexOf("didFinishLaunchingWithOptions");
+    const openingBrace = contents.indexOf("{", launchMethod);
+    if (launchMethod === -1 || openingBrace === -1) {
+      throw new Error(
+        "react-native-evskit could not find the Swift AppDelegate launch method",
+      );
+    }
+    config.modResults.contents =
+      contents.slice(0, openingBrace + 1) +
+      `\n    ${marker}\n    registerEvsAppScreens()` +
+      contents.slice(openingBrace + 1);
+    return config;
+  });
 }
 
 function addSwiftFileToSources(project, objects, sourcesPhase, fileName, relativePath) {
@@ -176,8 +204,7 @@ function withEvsIosScreens(config, iosScreensDir, register) {
       );
     }
     // Generated registrar — written into the (regenerable) ios/ dir and
-    // linked the same way. Top-level `let` runs at binary load, so no
-    // AppDelegate changes are needed.
+    // linked the same way.
     if (Object.keys(register).length) {
       const generatedPath = path.join(iosDir, GENERATED_IOS_FILE);
       fs.writeFileSync(generatedPath, generatedIosContents(register));
@@ -189,6 +216,11 @@ function withEvsIosScreens(config, iosScreensDir, register) {
         GENERATED_IOS_FILE,
       );
     }
+    // NOTE: We do NOT call withEvsIosAppDelegate here. The withAppDelegate
+    // provider (registered by the outer plugin chain) must be the LAST mod
+    // added to ios.appDelegate. Instead, withEvsIosAppDelegate is called
+    // from the top-level plugin function after withEvsIosScreens returns,
+    // ensuring the correct mod ordering.
     return config;
   });
 }

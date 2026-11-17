@@ -85,7 +85,7 @@ public class EvsKitModule: Module {
     // from JS with showScreen(id:).
 
     AsyncFunction("showScreen") { (id: String) -> Void in
-      await MainActor.run { () -> Void in
+      try await MainActor.run { () -> Void in
         guard let screen = EvsScreenRegistry.make(id: id) else {
           throw Exception(
             name: "EVSKIT_UNKNOWN_SCREEN",
