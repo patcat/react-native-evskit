@@ -1,6 +1,6 @@
 {
   "name": "@therealitycrafters/react-native-evskit",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "React Native / Expo bridge for Everysight's Maverick SDK (EvsKit + NativeEvsKit)",
   "author": "Patrick Catanzariti",
   "homepage": "https://therealitycrafters.com",
@@ -26,7 +26,8 @@
     "clean": "expo-module clean",
     "lint": "expo-module lint",
     "prepare": "expo-module prepare",
-    "prepublishOnly": "expo-module prepublishOnly"
+    "prepublishOnly": "expo-module prepublishOnly",
+    "test": "jest"
   },
   "keywords": [
     "react-native",

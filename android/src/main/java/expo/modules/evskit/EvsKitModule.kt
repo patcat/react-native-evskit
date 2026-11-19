@@ -29,6 +29,9 @@ import UIKit.app.data.YprData
 import UIKit.app.data.QuaternionData
 
 import UIKit.app.Viewport
+import UIKit.app.Screen
+import UIKit.controls.popup.PopupMessage
+import UIKit.widgets.Text
 
 class DeviceInfoRecord : Record {
   @Field val deviceId: String = ""
@@ -51,6 +54,7 @@ class EvsKitModule : Module() {
   // Screen, FullScreen and ArScreen.
   private val activeScreens = mutableMapOf<String, Viewport>()
   private val activeScreenOrder = mutableListOf<String>()
+  private val declarativeScreens = mutableMapOf<String, EvsDeclarativeScreen>()
 
   override fun definition() = ModuleDefinition {
     Name("RNEvsKit")
@@ -64,7 +68,8 @@ class EvsKitModule : Module() {
       "onAmbient",
       "onYpr",
       "onQuaternion",
-      "onError"
+      "onError",
+      "onScreenTouch"
     )
 
     OnCreate {
@@ -106,6 +111,87 @@ class EvsKitModule : Module() {
       }
     }
 
+    // --- Declarative screens & popups (IEvsScreenService) -------------------
+
+    AsyncFunction("renderDeclarativeScreen") { spec: Map<String, Any?>, promise: Promise ->
+      try {
+        val id = spec["id"] as? String
+          ?: throw IllegalArgumentException("Missing 'id' in screen spec")
+        val width = (spec["width"] as? Number)?.toFloat() ?: 420f
+        val height = (spec["height"] as? Number)?.toFloat() ?: 150f
+        @Suppress("UNCHECKED_CAST")
+        val elements = (spec["elements"] as? List<Map<String, Any?>>) ?: emptyList()
+
+        val existing = declarativeScreens[id]
+        if (existing != null) {
+          // Idempotent: reconcile live element properties in place
+          existing.syncElements(elements)
+        } else {
+          val screen = EvsDeclarativeScreen(id, width, height)
+          screen.onTouchHandler = { screenId, touch ->
+            sendEvent(
+              "onScreenTouch",
+              mapOf(
+                "screenId" to screenId,
+                "direction" to touch.name
+              )
+            )
+          }
+          screen.syncElements(elements)
+          Evs.instance().screens().addScreen(screen)
+          declarativeScreens[id] = screen
+          if (!activeScreens.containsKey(id)) {
+            activeScreenOrder.add(id)
+          }
+          activeScreens[id] = screen
+        }
+        promise.resolve(null)
+      } catch (e: Exception) {
+        promise.reject("EVSKIT_RENDER_DECLARATIVE_FAILED", e.message, e)
+      }
+    }
+
+    AsyncFunction("removeDeclarativeScreen") { id: String, promise: Promise ->
+      try {
+        val declarative = declarativeScreens.remove(id)
+        if (declarative != null) {
+          Evs.instance().screens().removeScreen(declarative)
+        }
+        activeScreens.remove(id)
+        activeScreenOrder.remove(id)
+        promise.resolve(null)
+      } catch (e: Exception) {
+        promise.reject("EVSKIT_REMOVE_DECLARATIVE_FAILED", e.message, e)
+      }
+    }
+
+    AsyncFunction("showPopupMessage") { spec: Map<String, Any?>, promise: Promise ->
+      try {
+        val textStr = spec["text"] as? String ?: return@AsyncFunction
+        val fontStr = spec["font"] as? String
+        val alignVStr = spec["alignV"] as? String
+        val timeoutMs = (spec["timeoutMs"] as? Number)?.toInt() ?: 3000
+        val color = (spec["color"] as? Number)?.toInt()
+
+        val text = Text()
+        text.setText(textStr).setResource(EvsElementAdapter.mapFont(fontStr))
+        if (color != null) {
+          text.setForegroundColor(color)
+        }
+
+        val alignV = EvsElementAdapter.mapAlignV(alignVStr)
+        val popup = PopupMessage(text, alignV, timeoutMs)
+
+        val topmostId = activeScreenOrder.lastOrNull()
+        val screen = activeScreens[topmostId] as? Screen
+        screen?.showPopup(popup)
+
+        promise.resolve(null)
+      } catch (e: Exception) {
+        promise.reject("EVSKIT_SHOW_POPUP_FAILED", e.message, e)
+      }
+    }
+
     // --- App-owned screens (IEvsScreenService) -------------------------------
     //
     // The bridge ships no Screen subclasses. Apps register their own via
@@ -134,10 +220,17 @@ class EvsKitModule : Module() {
 
     AsyncFunction("removeScreen") { id: String, promise: Promise ->
       try {
-        activeScreens.remove(id)?.let { screen ->
-          Evs.instance().screens().removeScreen(screen)
-          activeScreenOrder.remove(id)
+        val declarative = declarativeScreens.remove(id)
+        if (declarative != null) {
+          Evs.instance().screens().removeScreen(declarative)
+        } else {
+          val screen = activeScreens[id]
+          if (screen != null) {
+            Evs.instance().screens().removeScreen(screen)
+          }
         }
+        activeScreens.remove(id)
+        activeScreenOrder.remove(id)
         promise.resolve(null)
       } catch (e: Exception) {
         promise.reject("EVSKIT_REMOVE_SCREEN_FAILED", e.message, e)

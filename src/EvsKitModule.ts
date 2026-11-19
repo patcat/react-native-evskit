@@ -5,6 +5,8 @@ import type {
   EvsDeviceInfo,
   EvsGlassesInfo,
   EvsKitEvents,
+  EvsNormalizedPopupSpec,
+  EvsNormalizedScreenSpec,
   EvsStockUIScreen,
 } from "./EvsKit.types";
 
@@ -47,6 +49,11 @@ declare class EvsKitNativeModule extends NativeModule<EvsKitEvents> {
   // --- Screens (rendering offset) ---------------------------------------------
   setRenderingCenterX(dx: number): Promise<void>;
   setRenderingCenterY(dy: number): Promise<void>;
+
+  // --- Declarative screens & popups ----------------------------------------
+  renderDeclarativeScreen(spec: EvsNormalizedScreenSpec): Promise<void>;
+  removeDeclarativeScreen(id: string): Promise<void>;
+  showPopupMessage(spec: EvsNormalizedPopupSpec): Promise<void>;
 
   // --- App-owned screens (IEvsScreenService via EvsScreenRegistry) ------------
   /**

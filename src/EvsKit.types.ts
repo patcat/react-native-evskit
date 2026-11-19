@@ -113,6 +113,15 @@ export type EvsStockUIScreen = "configure" | "adjust" | "calibrate";
 export type EvsScreenId = string;
 
 // ---------------------------------------------------------------------------
+// Declarative glasses screens
+// ---------------------------------------------------------------------------
+
+export * from "./EvsDeclarative.types";
+
+import type { EvsScreenTouchEvent } from "./EvsDeclarative.types";
+
+
+// ---------------------------------------------------------------------------
 // Auth (IEvsAuthService) / lifecycle events (IEvsAppEvents)
 // ---------------------------------------------------------------------------
 
@@ -136,4 +145,5 @@ export type EvsKitEvents = {
   onYpr: (sample: EvsYprSample) => void;
   onQuaternion: (sample: EvsQuaternionSample) => void;
   onError: (message: string) => void;
+  onScreenTouch: (event: EvsScreenTouchEvent) => void;
 };

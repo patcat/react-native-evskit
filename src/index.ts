@@ -3,15 +3,21 @@ import { useEffect } from "react";
 
 import type {
   EvsAutoBrightnessOptions,
+  EvsDeclarativeScreenSpec,
   EvsDeviceInfo,
   EvsGlassesInfo,
   EvsKitEvents,
+  EvsPopupMessageSpec,
   EvsScreenId,
   EvsStockUIScreen,
 } from "./EvsKit.types";
+import { normalizePopupSpec, normalizeScreenSpec } from "./EvsDeclarativeUtils";
 import EvsKitNative from "./EvsKitModule";
 
 export * from "./EvsKit.types";
+export * from "./EvsDeclarative.types";
+export * from "./EvsDeclarativeUtils";
+export * from "./GlassesScreen";
 
 /**
  * Communication service — mirrors IEvsCommunicationService
@@ -114,28 +120,37 @@ export const EvsAuth = {
   },
 };
 
-/** Mirrors `Evs.instance().showUI(...)` — the SDK's built-in portrait UI screens. */
+/** Mirrors `Evs.instance().showUI(...)` plus heads-up popup notifications. */
 export const EvsUI = {
   show(screen: EvsStockUIScreen) {
     return EvsKitNative.showUI(screen);
+  },
+  /** Shows a transient popup notification overlay on the active glasses screen. */
+  showPopup(spec: EvsPopupMessageSpec) {
+    return EvsKitNative.showPopupMessage(normalizePopupSpec(spec));
   },
 };
 
 /**
  * App-owned glasses screens (`Evs.instance().screens()`).
  *
- * The bridge ships no Screen subclasses. Register yours natively per app —
- * `EvsScreenRegistry.register(id, factory)` from app-owned Swift/Kotlin
- * sources (linked at prebuild by the plugin's `screens` option) — then push
- * them from JS:
- *
- * @example
- * await EvsScreens.show("hello-world");
+ * Supports both:
+ * 1. Declarative real-time screens (`EvsScreens.render(...)` or `<GlassesScreen>`).
+ * 2. Native Swift/Kotlin screens registered via `EvsScreenRegistry` (`EvsScreens.show(id)`).
  */
 export const EvsScreens = {
+  /**
+   * Idempotently renders or reconciles a declarative screen on the glasses.
+   * If a screen with this `id` already exists, it is updated in-place.
+   */
+  render(spec: EvsDeclarativeScreenSpec) {
+    return EvsKitNative.renderDeclarativeScreen(normalizeScreenSpec(spec));
+  },
+  /** Pushes an app-registered native Swift/Kotlin screen by id. */
   show(id: EvsScreenId) {
     return EvsKitNative.showScreen(id);
   },
+  /** Removes a declarative or native screen from the glasses screen stack by id. */
   remove(id: EvsScreenId) {
     return EvsKitNative.removeScreen(id);
   },

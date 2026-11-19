@@ -145,6 +145,125 @@ When running in simulator, as you'll see in the sample app, you may need the `io
 
 This is apparently required when macOS selects an interface such as an iPhone hotspot address (`192.0.0.2`). Without it, the simulator can try to load Metro over an HTTP address that iOS App Transport Security rejects. For another app, use `REACT_NATIVE_PACKAGER_HOSTNAME=localhost` with `expo run:ios` when the simulator and Metro run on the same Mac.
 
+## Declarative Glasses Screens (Real-Time HUDs)
+
+You can define and iterate on screens directly in React Native in real time without recompiling native Swift or Kotlin code. Changes update immediately with Metro Fast Refresh.
+
+### Declarative React Component
+
+```tsx
+import React, { useState } from 'react';
+import {
+  GlassesScreen,
+  GlassesText,
+  GlassesLine,
+  GlassesArrow,
+  GlassesRect,
+  EvsUI,
+} from '@therealitycrafters/react-native-evskit';
+
+export function NavigationHud({ speed, isConnected }: { speed: number; isConnected: boolean }) {
+  return (
+    <GlassesScreen
+      id="nav-hud"
+      width={420}
+      height={150}
+      visible={isConnected}
+      onTouch={(e) => {
+        if (e.direction === 'tap') {
+          EvsUI.showPopup({ text: 'Lap Recorded', color: '#00ff00', timeoutMs: 2000 });
+        }
+      }}
+    >
+      {/* Outer border */}
+      <GlassesRect x={0} y={0} width={420} height={150} color="#00ff00" />
+
+      {/* Speedometer */}
+      <GlassesText
+        key="speed"
+        x={70}
+        y={65}
+        text={`${speed}`}
+        font="large"
+        align="center"
+        color="#00ff00"
+      />
+      <GlassesText
+        key="unit"
+        x={70}
+        y={105}
+        text="KM/H"
+        font="small"
+        align="center"
+        color="#00ff00"
+      />
+
+      {/* Vertical divider */}
+      <GlassesLine x={140} y={15} x1={140} y1={135} thickness={2} color="#00ff00" />
+
+      {/* Direction arrow */}
+      <GlassesArrow
+        key="arrow"
+        x={220}
+        y={50}
+        direction="up"
+        color="#ffff00"
+        fillColor="#00ff00"
+      />
+
+      {/* Direction text */}
+      <GlassesText
+        key="turn-info"
+        x={310}
+        y={75}
+        text="Turn right in 200m"
+        font="medium"
+        align="left"
+        color="#ffffff"
+      />
+    </GlassesScreen>
+  );
+}
+```
+
+### Low-Level Imperative API
+
+Outside of React components, you can also render declarative screens imperatively:
+
+```ts
+import { EvsScreens, EvsUI } from '@therealitycrafters/react-native-evskit';
+
+// Idempotent: creates screen or reconciles properties in-place
+await EvsScreens.render({
+  id: 'status',
+  width: 420,
+  height: 150,
+  elements: [
+    {
+      key: 'msg',
+      type: 'text',
+      text: 'Connected',
+      x: '50%',
+      y: 75,
+      align: 'center',
+      font: 'medium',
+      color: '#00ff00',
+    },
+  ],
+});
+
+// Show heads-up notification popup
+await EvsUI.showPopup({
+  text: 'Battery Low',
+  color: '#ff0000',
+  alignV: 'bottom',
+  timeoutMs: 3000,
+});
+
+// Remove screen
+await EvsScreens.remove('status');
+```
+
 ## Notes / deliberate scope cuts
 
 - **BLE scanning** isn't wrapped here — the SDK docs specify scanning uses the platform's standard BLE APIs directly (`CBCentralManager` / `BluetoothLeScanner`) against `BTConstants.serviceUUID`, filtering for `EV####`-style device names. Pair this module with a BLE library (e.g. `react-native-ble-plx`) for a custom scan UI, or just call `EvsKit.ui.show('configure')` to use the SDK's built-in scan/pair screen.

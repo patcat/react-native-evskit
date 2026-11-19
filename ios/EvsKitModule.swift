@@ -28,6 +28,7 @@ public class EvsKitModule: Module {
   /// Screen, FullScreen and ArScreen.
   private var activeScreens: [String: Viewport] = [:]
   private var activeScreenOrder: [String] = []
+  private var declarativeScreens: [String: EvsDeclarativeScreen] = [:]
 
   public func definition() -> ModuleDefinition {
     Name("RNEvsKit")
@@ -41,7 +42,8 @@ public class EvsKitModule: Module {
       "onAmbient",
       "onYpr",
       "onQuaternion",
-      "onError"
+      "onError",
+      "onScreenTouch"
     )
 
     OnCreate {
@@ -77,6 +79,76 @@ public class EvsKitModule: Module {
       }
     }
 
+    // --- Declarative screens & popups (IEvsScreenService) -------------------
+
+    AsyncFunction("renderDeclarativeScreen") { (spec: [String: Any]) -> Void in
+      try await MainActor.run { () -> Void in
+        guard let id = spec["id"] as? String else {
+          throw Exception(name: "EVSKIT_INVALID_SCREEN", description: "Missing 'id' in screen spec")
+        }
+        let width = (spec["width"] as? NSNumber)?.floatValue ?? 420.0
+        let height = (spec["height"] as? NSNumber)?.floatValue ?? 150.0
+        let elements = (spec["elements"] as? [[String: Any]]) ?? []
+
+        if let existing = self.declarativeScreens[id] {
+          // Idempotent: reconcile live element properties in place
+          existing.syncElements(specs: elements)
+        } else {
+          let screen = EvsDeclarativeScreen(id: id, width: width, height: height)
+          screen.onTouchHandler = { [weak self] screenId, direction in
+            self?.sendEvent("onScreenTouch", [
+              "screenId": screenId,
+              "direction": String(describing: direction)
+            ])
+          }
+          screen.syncElements(specs: elements)
+          Evs.instance().screens().addScreen(screen: screen)
+          self.declarativeScreens[id] = screen
+          if self.activeScreens[id] == nil {
+            self.activeScreenOrder.append(id)
+          }
+          self.activeScreens[id] = screen
+        }
+      }
+    }
+
+    AsyncFunction("removeDeclarativeScreen") { (id: String) -> Void in
+      await MainActor.run { () -> Void in
+        if let screen = self.declarativeScreens[id] {
+          Evs.instance().screens().removeScreen(screen: screen)
+          self.declarativeScreens.removeValue(forKey: id)
+        }
+        self.activeScreens.removeValue(forKey: id)
+        self.activeScreenOrder.removeAll { $0 == id }
+      }
+    }
+
+    AsyncFunction("showPopupMessage") { (spec: [String: Any]) -> Void in
+      await MainActor.run { () -> Void in
+        guard let textStr = spec["text"] as? String else { return }
+        let fontStr = spec["font"] as? String
+        let alignVStr = spec["alignV"] as? String
+        let timeoutMs = (spec["timeoutMs"] as? NSNumber)?.int32Value ?? 3000
+        let color = (spec["color"] as? NSNumber)?.int32Value
+
+        let text = Text()
+        text.setText(text: textStr)
+          .setResource(font: EvsElementAdapter.mapFont(fontStr))
+        if let color = color {
+          text.setForegroundColor(color: color)
+        }
+
+        let alignV = EvsElementAdapter.mapAlignV(alignVStr)
+        let popup = PopupMessage(view: text, alignV: alignV, timeoutMs: timeoutMs, onClosed: nil)
+
+        // Present on the topmost active screen
+        if let topmostId = self.activeScreenOrder.last,
+           let screen = self.activeScreens[topmostId] as? Screen {
+          screen.showPopup(message: popup)
+        }
+      }
+    }
+
     // --- App-owned screens (IEvsScreenService) --------------------------------
     //
     // The bridge ships no Screen subclasses. Apps register their own via
@@ -104,8 +176,12 @@ public class EvsKitModule: Module {
 
     AsyncFunction("removeScreen") { (id: String) -> Void in
       await MainActor.run { () -> Void in
-        guard let screen = self.activeScreens[id] else { return }
-        Evs.instance().screens().removeScreen(screen: screen)
+        if let screen = self.declarativeScreens[id] {
+          Evs.instance().screens().removeScreen(screen: screen)
+          self.declarativeScreens.removeValue(forKey: id)
+        } else if let screen = self.activeScreens[id] {
+          Evs.instance().screens().removeScreen(screen: screen)
+        }
         self.activeScreens.removeValue(forKey: id)
         self.activeScreenOrder.removeAll { $0 == id }
       }
